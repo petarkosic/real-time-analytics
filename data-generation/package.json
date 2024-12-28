@@ -9,7 +9,13 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "dependencies": {
+    "amqplib": "^0.10.5",
+    "dotenv": "^16.4.7",
+    "winston": "^3.17.0"
+  },
   "devDependencies": {
+    "@types/amqplib": "^0.10.6",
     "typescript": "^5.7.2"
   }
 }

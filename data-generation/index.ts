@@ -1,3 +1,42 @@
+import { config } from 'dotenv';
+config();
+import amqp from 'amqplib';
+import * as winston from 'winston';
+
+const logger = winston.createLogger({
+	level: 'info',
+	format: winston.format.combine(winston.format.json()),
+	transports: [new winston.transports.Console()],
+});
+
+const rabbitMQConnOptions = {
+	host: process.env.RABBITMQ_HOST,
+	port: Number(process.env.RABBITMQ_PORT),
+	username: process.env.RABBITMQ_USERNAME,
+	password: process.env.RABBITMQ_PASSWORD,
+	vhost: process.env.RABBITMQ_VHOST,
+};
+
+async function connectRabbitMQ(): Promise<{
+	channel: amqp.Channel;
+	connection: amqp.Connection;
+}> {
+	try {
+		const connection = await amqp.connect(rabbitMQConnOptions);
+		const channel = await connection.createChannel();
+
+		await channel.assertQueue('stock_price_queue', { durable: true });
+
+		return { connection, channel };
+	} catch (error) {
+		logger.error('Error connecting to RabbitMQ:', error);
+
+		setTimeout(connectRabbitMQ, 5000);
+
+		throw error;
+	}
+}
+
 function generateSyntheticData(): {
 	symbol: string;
 	price: number;
@@ -21,10 +60,28 @@ function generateSyntheticData(): {
 	};
 }
 
-while (true) {
-	const data = generateSyntheticData();
+async function startGenerating() {
+	const { channel } = await connectRabbitMQ();
 
-	const message = JSON.stringify(data);
+	while (true) {
+		try {
+			const data = generateSyntheticData();
 
-	console.log(`Sent data: ${message}`);
+			const message = JSON.stringify(data);
+
+			await channel.sendToQueue('stock_price_queue', Buffer.from(message), {
+				persistent: true,
+			});
+
+			logger.info('Sent data: ' + message);
+		} catch (error) {
+			logger.error('Error sending message to queue:', error);
+		}
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+	}
 }
+
+startGenerating().catch((error) => {
+	logger.error('Error generating data:', error);
+});
