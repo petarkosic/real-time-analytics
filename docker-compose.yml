@@ -1,0 +1,20 @@
+services:
+  rabbitmq:
+    image: rabbitmq:4.0.5-management-alpine
+    ports:
+      - 5672:5672
+      - 15672:15672
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+      - RABBITMQ_DEFAULT_VHOST=/
+    volumes:
+      - ./rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - real-time-analytics
+
+networks:
+  real-time-analytics:
+
+volumes:
+  rabbitmq-data:
