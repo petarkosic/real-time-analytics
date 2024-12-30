@@ -10,11 +10,11 @@ const logger = winston.createLogger({
 });
 
 const rabbitMQConnOptions = {
-	host: process.env.RABBITMQ_HOST,
+	protocol: process.env.RABBITMQ_PROTOCOL,
+	hostname: process.env.RABBITMQ_HOSTNAME,
 	port: Number(process.env.RABBITMQ_PORT),
-	username: process.env.RABBITMQ_USERNAME,
-	password: process.env.RABBITMQ_PASSWORD,
-	vhost: process.env.RABBITMQ_VHOST,
+	username: process.env.RABBITMQ_USER,
+	password: process.env.RABBITMQ_PASS,
 };
 
 async function connectRabbitMQ(): Promise<{
@@ -72,8 +72,6 @@ async function startGenerating() {
 			await channel.sendToQueue('stock_price_queue', Buffer.from(message), {
 				persistent: true,
 			});
-
-			logger.info('Sent data: ' + message);
 		} catch (error) {
 			logger.error('Error sending message to queue:', error);
 		}
