@@ -1,15 +1,38 @@
 services:
   rabbitmq:
     image: rabbitmq:4.0.5-management-alpine
+    container_name: rta-rabbitmq
     ports:
       - 5672:5672
       - 15672:15672
     environment:
-      - RABBITMQ_DEFAULT_USER=guest
-      - RABBITMQ_DEFAULT_PASS=guest
-      - RABBITMQ_DEFAULT_VHOST=/
+      - RABBITMQ_DEFAULT_USER=default
+      - RABBITMQ_DEFAULT_PASS=default
     volumes:
       - ./rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ['CMD', 'rabbitmqctl', 'status']
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - real-time-analytics
+
+  data-generation:
+    build:
+      context: ./data-generation
+      dockerfile: Dockerfile
+    container_name: rta-data-generation
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
+    environment:
+      - RABBITMQ_PROTOCOL=amqp
+      - RABBITMQ_HOSTNAME=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=default
+      - RABBITMQ_PASS=default
     networks:
       - real-time-analytics
 
