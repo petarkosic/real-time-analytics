@@ -36,6 +36,24 @@ services:
     networks:
       - real-time-analytics
 
+  data-processing:
+    build:
+      context: ./data-processing
+      dockerfile: Dockerfile
+    container_name: rta-data-processing
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
+    environment:
+      - RABBITMQ_PROTOCOL=amqp
+      - RABBITMQ_HOSTNAME=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=default
+      - RABBITMQ_PASS=default
+    networks:
+      - real-time-analytics
+
 networks:
   real-time-analytics:
 
