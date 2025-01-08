@@ -36,6 +36,22 @@ async function connectRabbitMQ(): Promise<{
 		throw error;
 	}
 }
+// Define base prices and volume ranges for each symbol
+const basePrices: Record<string, number> = {
+	AAPL: 150,
+	GOOGL: 2500,
+	MSFT: 300,
+	AMZN: 1200,
+	TSLA: 700,
+};
+
+const baseVolumes: Record<string, { min: number; max: number }> = {
+	AAPL: { min: 10000, max: 50000 },
+	GOOGL: { min: 1000, max: 5000 },
+	MSFT: { min: 15000, max: 60000 },
+	AMZN: { min: 8000, max: 40000 },
+	TSLA: { min: 5000, max: 25000 },
+};
 
 function generateSyntheticData(): {
 	symbol: string;
@@ -45,16 +61,23 @@ function generateSyntheticData(): {
 } {
 	const symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA'];
 	const symbol = symbols[Math.floor(Math.random() * symbols.length)];
-	const price = Math.round(Math.random() * (200 - 100) + 100);
-	const volume = Math.floor(Math.random() * (10000 - 1000) + 1000);
-	const timestamp = new Date()
-		.toISOString()
-		.replace('T', 'T')
-		.replace('Z', 'Z');
+
+	// Generate price with ±10% fluctuation around the base price
+	const basePrice = basePrices[symbol];
+	const fluctuation = basePrice * 0.1;
+	const price = basePrice + (Math.random() * 2 - 1) * fluctuation;
+
+	// Generate volume within the specified range for the symbol
+	const volumeRange = baseVolumes[symbol];
+	const volume = Math.floor(
+		Math.random() * (volumeRange.max - volumeRange.min + 1) + volumeRange.min
+	);
+
+	const timestamp = new Date().toISOString();
 
 	return {
 		symbol,
-		price: price / 100,
+		price,
 		volume,
 		timestamp,
 	};
