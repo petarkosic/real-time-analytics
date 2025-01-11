@@ -6,12 +6,32 @@ services:
       - 5672:5672
       - 15672:15672
     environment:
-      - RABBITMQ_DEFAULT_USER=default
-      - RABBITMQ_DEFAULT_PASS=default
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
     volumes:
       - ./rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
       test: ['CMD', 'rabbitmqctl', 'status']
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - real-time-analytics
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: rta-timescaledb
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB_INITIAL}
+    volumes:
+      - ./timescaledb-data:/var/lib/postgresql/data
+      - ./data-processing/db/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'postgres', '-d', 'postgres']
       interval: 10s
       timeout: 10s
       retries: 5
@@ -26,13 +46,15 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+      timescaledb:
+        condition: service_healthy
     restart: on-failure
     environment:
-      - RABBITMQ_PROTOCOL=amqp
-      - RABBITMQ_HOSTNAME=rabbitmq
-      - RABBITMQ_PORT=5672
-      - RABBITMQ_USER=default
-      - RABBITMQ_PASS=default
+      - RABBITMQ_PROTOCOL=${RABBITMQ_PROTOCOL}
+      - RABBITMQ_HOSTNAME=${RABBITMQ_HOSTNAME}
+      - RABBITMQ_PORT=${RABBITMQ_PORT}
+      - RABBITMQ_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_PASS=${RABBITMQ_DEFAULT_PASS}
     networks:
       - real-time-analytics
 
@@ -44,13 +66,21 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+      timescaledb:
+        condition: service_healthy
     restart: on-failure
     environment:
-      - RABBITMQ_PROTOCOL=amqp
-      - RABBITMQ_HOSTNAME=rabbitmq
-      - RABBITMQ_PORT=5672
-      - RABBITMQ_USER=default
-      - RABBITMQ_PASS=default
+      - RABBITMQ_PROTOCOL=${RABBITMQ_PROTOCOL}
+      - RABBITMQ_HOSTNAME=${RABBITMQ_HOSTNAME}
+      - RABBITMQ_PORT=${RABBITMQ_PORT}
+      - RABBITMQ_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_PASS=${RABBITMQ_DEFAULT_PASS}
+
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB_NAME}
     networks:
       - real-time-analytics
 
