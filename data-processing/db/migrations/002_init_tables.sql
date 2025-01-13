@@ -33,7 +33,6 @@ CREATE TABLE IF NOT EXISTS processed_analytics (
     timespan JSONB,
     momentum_indicator FLOAT,
     volume_weighted_average_price FLOAT,
-    ticks JSONB,
     processing_timestamp TIMESTAMPTZ NOT NULL,
 
     PRIMARY KEY (id, symbol, processing_timestamp)

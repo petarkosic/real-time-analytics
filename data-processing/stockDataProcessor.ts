@@ -27,7 +27,7 @@ interface ProcessedStockData {
 }
 
 export class StockDataProcessor {
-	private symbolBuffers: {
+	private symbolBuffer: {
 		[symbol: string]: {
 			ticks: StockTick[];
 			startTime: number;
@@ -37,32 +37,34 @@ export class StockDataProcessor {
 	private readonly WINDOW_SIZE = 10 * 1000; // 10 seconds window
 
 	processMessage(tick: StockTick): ProcessedStockData | null {
-		const now = Date.now();
+		const now = new Date(tick.timestamp).getTime();
 
-		if (!this.symbolBuffers[tick.symbol]) {
-			this.symbolBuffers[tick.symbol] = {
-				ticks: [tick],
+		if (!this.symbolBuffer[tick.symbol]) {
+			this.symbolBuffer[tick.symbol] = {
+				ticks: [],
 				startTime: now,
 			};
 		}
 
-		this.symbolBuffers[tick.symbol].ticks = this.symbolBuffers[
+		this.symbolBuffer[tick.symbol].ticks = this.symbolBuffer[
 			tick.symbol
 		].ticks.filter(
 			(tick) => new Date(tick.timestamp).getTime() >= now - this.WINDOW_SIZE
 		);
-		this.symbolBuffers[tick.symbol].ticks.push(tick);
 
-		const processedData = this.calculateAnalytics(tick.symbol, now);
+		if (this.symbolBuffer[tick.symbol].ticks.length === 0) {
+			this.symbolBuffer[tick.symbol].startTime = now;
+		}
+
+		this.symbolBuffer[tick.symbol].ticks.push(tick);
+
+		const processedData = this.calculateAnalytics(tick.symbol);
 
 		return processedData;
 	}
 
-	private calculateAnalytics(
-		symbol: string,
-		now: number
-	): ProcessedStockData | null {
-		const buffer = this.symbolBuffers[symbol];
+	private calculateAnalytics(symbol: string): ProcessedStockData | null {
+		const buffer = this.symbolBuffer[symbol];
 
 		if (!buffer || buffer.ticks.length === 0) {
 			return null;
@@ -87,7 +89,9 @@ export class StockDataProcessor {
 				timespan: {
 					start: sortedTicks[0].timestamp,
 					end: sortedTicks[sortedTicks.length - 1].timestamp,
-					duration: now - buffer.startTime,
+					duration:
+						new Date(sortedTicks[sortedTicks.length - 1].timestamp).getTime() -
+						new Date(sortedTicks[0].timestamp).getTime(),
 				},
 				momentumIndicator: this.calculateMomentumIndicator(prices),
 				volumeWeightedAveragePrice: this.calculateVWAP(buffer.ticks),
