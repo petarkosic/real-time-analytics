@@ -1,8 +1,8 @@
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
-import { Pool } from 'pg';
 import { Server } from 'socket.io';
+import amqp from 'amqplib';
 
 const app = express();
 
@@ -16,40 +16,47 @@ const io = new Server(server, {
 	},
 });
 
-const pool = new Pool({
-	user: process.env.POSTGRES_USER,
-	host: process.env.POSTGRES_HOST,
-	database: process.env.POSTGRES_DB,
-	password: process.env.POSTGRES_PASSWORD,
-	port: Number(process.env.POSTGRES_PORT),
-});
+const rabbitMQConnOptions = {
+	protocol: process.env.RABBITMQ_PROTOCOL,
+	hostname: process.env.RABBITMQ_HOSTNAME,
+	port: Number(process.env.RABBITMQ_PORT),
+	username: process.env.RABBITMQ_USER,
+	password: process.env.RABBITMQ_PASS,
+};
 
-io.on('connection', (socket) => {
-	console.log('A user connected');
+async function setupRabbitMQConsumer() {
+	try {
+		const connection = await amqp.connect(rabbitMQConnOptions);
+		const channel = await connection.createChannel();
+		await channel.assertQueue('stock_price_queue', { durable: true });
 
-	socket.on('subscribe', async (symbols) => {
-		const client = await pool.connect();
+		io.on('connection', (socket) => {
+			console.log('A user connected');
 
-		for (const symbol of symbols) {
-			const query = `
-            SELECT symbol, price, volume, timestamp
-            FROM raw_stock_data
-            WHERE symbol = $1
-            ORDER BY timestamp DESC
-            LIMIT 100
-            `;
+			socket.on('subscribe', async (symbols) => {
+				channel.consume('stock_price_queue', async (msg) => {
+					if (msg) {
+						const stockData = JSON.parse(msg.content.toString());
 
-			const data = await client.query(query, [symbol]);
+						if (symbols.includes(stockData.symbol)) {
+							socket.emit('stock', [stockData]);
+						}
 
-			socket.emit('stock', data.rows);
-		}
-	});
+						channel.ack(msg);
+					}
+				});
+			});
 
-	socket.on('disconnect', () => {
-		console.log('A user disconnected');
-	});
-});
+			socket.on('disconnect', () => {
+				console.log('A user disconnected');
+			});
+		});
+	} catch (error) {
+		console.error('Error connecting to RabbitMQ', error);
+	}
+}
 
-server.listen(5000, () => {
+server.listen(5000, async () => {
 	console.log('Server is running on port 5000');
+	await setupRabbitMQConsumer();
 });
