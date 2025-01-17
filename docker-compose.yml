@@ -84,6 +84,26 @@ services:
     networks:
       - real-time-analytics
 
+  web-socket-server:
+    build:
+      context: ./web-socket-server
+      dockerfile: Dockerfile
+    container_name: rta-web-socket-server
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
+    ports:
+      - 5000:5000
+    environment:
+      - RABBITMQ_PROTOCOL=${RABBITMQ_PROTOCOL}
+      - RABBITMQ_HOSTNAME=${RABBITMQ_HOSTNAME}
+      - RABBITMQ_PORT=${RABBITMQ_PORT}
+      - RABBITMQ_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_PASS=${RABBITMQ_DEFAULT_PASS}
+    networks:
+      - real-time-analytics
+
 networks:
   real-time-analytics:
 
