@@ -1,93 +1,202 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './App.css';
 import { io } from 'socket.io-client';
 import 'chart.js/auto';
 import { Line } from 'react-chartjs-2';
+import 'chartjs-adapter-date-fns';
 
 type StockData = {
 	symbol: string;
+	bucket: string;
 	price: number;
-	volume: number;
-	timestamp: string;
+	avgPrice: number;
+	maxPrice: number;
+	minPrice: number;
 };
 
 function App() {
-	const [stockData, setStockData] = useState<Record<string, StockData[]>>({
-		AAPL: [],
-		GOOGL: [],
-		MSFT: [],
-		AMZN: [],
-		TSLA: [],
-	});
+	const [stockData, setStockData] = useState<Record<string, StockData[]>>({});
+
+	const [symbol, setSymbol] = useState('AAPL');
+
+	const [selectedTimeframe, setSelectedTimeframe] = useState('1m');
+
+	const socket = useRef(
+		io('http://localhost:5000', {
+			autoConnect: false,
+			reconnection: true,
+		})
+	);
 
 	const borderColors: Record<string, string> = {
 		AAPL: 'rgba(255, 99, 132, 1)',
+		AMZN: 'rgba(75, 192, 192, 1)',
 		GOOGL: 'rgba(54, 162, 235, 1)',
 		MSFT: 'rgba(255, 206, 86, 1)',
-		AMZN: 'rgba(75, 192, 192, 1)',
 		TSLA: 'rgba(153, 102, 255, 1)',
 	};
 
-	const MAX_DATA_POINTS = 100;
+	const periodicFetchRef = useRef<NodeJS.Timeout | null>(null);
+
+	const startPeriodicFetching = () => {
+		if (periodicFetchRef.current) {
+			clearInterval(periodicFetchRef.current);
+		}
+
+		periodicFetchRef.current = setInterval(() => {
+			if (socket.current.connected) {
+				socket.current.emit('stock', {
+					interval: selectedTimeframe,
+					symbol,
+				});
+			}
+		}, 200);
+	};
+
+	const stopPeriodicFetching = () => {
+		if (periodicFetchRef.current) {
+			clearInterval(periodicFetchRef.current);
+
+			periodicFetchRef.current = null;
+		}
+	};
 
 	useEffect(() => {
-		const socket = io('http://localhost:5000');
+		const newSocketRef = socket.current;
 
-		socket.on('connect', () => {
-			console.log('Connected to server');
-			socket.emit('subscribe', ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA']);
-		});
+		if (!newSocketRef.connected) {
+			newSocketRef.connect();
+		}
 
-		socket.on('stock', (data) => {
+		newSocketRef.emit('stock', { interval: selectedTimeframe, symbol });
+
+		newSocketRef.on('stock_data', (data) => {
 			setStockData((prev) => {
-				const newStockData = { ...prev };
+				const newState = { ...prev };
 
-				data.forEach((item: StockData) => {
-					if (!newStockData[item.symbol]) {
-						newStockData[item.symbol] = [];
-					}
-
-					newStockData[item.symbol].push(item);
-
-					if (newStockData[item.symbol].length > MAX_DATA_POINTS) {
-						newStockData[item.symbol] = newStockData[item.symbol].slice(
-							-MAX_DATA_POINTS
-						);
-					}
+				Object.entries(data).forEach(([symbol, newItems]) => {
+					newState[symbol] = newItems as StockData[];
 				});
 
-				return newStockData;
+				return newState;
 			});
 		});
 
+		startPeriodicFetching();
+
 		return () => {
-			socket.disconnect();
+			stopPeriodicFetching();
+
+			if (process.env.NODE_ENV === 'production') {
+				newSocketRef.off('stock_data');
+				newSocketRef.disconnect();
+			}
 		};
-	}, []);
+	}, [selectedTimeframe, symbol]);
+
+	const handleTimeframeChange = (
+		event: React.ChangeEvent<HTMLSelectElement>
+	) => {
+		setSelectedTimeframe(event.target.value);
+
+		stopPeriodicFetching();
+
+		socket.current.emit('stock', {
+			interval: event.target.value,
+			symbol,
+		});
+
+		startPeriodicFetching();
+	};
 
 	return (
 		<div
 			style={{
 				width: '100%',
-				height: '100%',
+				height: '100vh',
 				display: 'flex',
+				flexDirection: 'column',
 				alignItems: 'center',
-				justifyContent: 'center',
 			}}
 		>
-			<Line
-				data={{
-					labels: stockData.AAPL.map((data) => data.timestamp),
-					datasets: Object.entries(stockData).map(([symbol, data]) => ({
-						label: symbol,
-						data: data.map((item) => item.price),
-						borderColor: borderColors[symbol],
-						fill: false,
-					})),
-				}}
-			/>
+			<select value={symbol} onChange={(e) => setSymbol(e.target.value)}>
+				{Object.keys(borderColors).map((sym) => (
+					<option key={sym} value={sym}>
+						{sym}
+					</option>
+				))}
+			</select>
+			<select value={selectedTimeframe} onChange={handleTimeframeChange}>
+				<option value='1m'>1 Minute</option>
+				<option value='5m'>5 Minutes</option>
+				<option value='30m'>30 Minutes</option>
+				<option value='1h'>1 Hour</option>
+			</select>
+			<div style={{ width: '80%', height: '80%' }}>
+				<Line
+					data={{
+						labels: stockData?.[symbol]?.map((data) => data.bucket),
+						datasets: [
+							{
+								label: symbol,
+								data: stockData?.[symbol]?.map((item) => item.price),
+								borderColor: borderColors[symbol],
+								fill: false,
+							},
+						],
+					}}
+					options={{
+						scales: {
+							x: {
+								type: 'time',
+								time: {
+									unit: getChartTimeUnit(selectedTimeframe),
+									displayFormats: getChartDisplayFormats(selectedTimeframe),
+								},
+							},
+						},
+						animation: false,
+						elements: {
+							point: {
+								radius: 0,
+							},
+						},
+						responsive: true,
+						maintainAspectRatio: false,
+					}}
+					updateMode='none'
+				/>
+			</div>
 		</div>
 	);
 }
 
 export default App;
+
+function getChartTimeUnit(interval: string) {
+	switch (interval) {
+		case '1m':
+		case '5m':
+		case '30m':
+			return 'minute';
+		case '1h':
+			return 'hour';
+		default:
+			return 'minute';
+	}
+}
+
+function getChartDisplayFormats(interval: string) {
+	switch (interval) {
+		case '1m':
+			return { minute: 'HH:mm' };
+		case '5m':
+			return { minute: 'HH:mm' };
+		case '30m':
+			return { minute: 'HH:mm' };
+		case '1h':
+			return { hour: 'HH:mm' };
+		default:
+			return { minute: 'HH:mm' };
+	}
+}
