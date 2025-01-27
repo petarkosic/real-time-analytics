@@ -86,6 +86,9 @@ function generateSyntheticData(): {
 async function startGenerating() {
 	const { channel } = await connectRabbitMQ();
 
+	const MIN_INTERVAL = 500;
+	const MAX_INTERVAL = 1000;
+
 	while (true) {
 		try {
 			const data = generateSyntheticData();
@@ -95,11 +98,15 @@ async function startGenerating() {
 			await channel.sendToQueue('stock_price_queue', Buffer.from(message), {
 				persistent: true,
 			});
+
+			const interval =
+				Math.floor(Math.random() * (MAX_INTERVAL - MIN_INTERVAL + 1)) +
+				MIN_INTERVAL;
+
+			await new Promise((resolve) => setTimeout(resolve, interval));
 		} catch (error) {
 			logger.error('Error sending message to queue:', error);
 		}
-
-		await new Promise((resolve) => setTimeout(resolve, 0));
 	}
 }
 

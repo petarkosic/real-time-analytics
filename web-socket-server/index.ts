@@ -42,10 +42,10 @@ io.on('connection', (socket) => {
 			client.query('BEGIN');
 
 			const query = `
-	        SELECT symbol, time_bucket_gapfill($1, timestamp) AS bucket,
-	               locf(AVG(price)) AS avg_price,
-	               locf(MAX(price)) AS max_price,
-	               locf(MIN(price)) AS min_price
+	        SELECT symbol, time_bucket($1, timestamp) AS bucket,
+	               AVG(price) AS avg_price,
+	               MAX(price) AS max_price,
+	               MIN(price) AS min_price
 	        FROM raw_stock_data
 	        WHERE symbol = $2 AND
 			timestamp >= NOW() - INTERVAL '${getMaxInterval(interval)}' AND

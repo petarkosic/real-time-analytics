@@ -34,7 +34,7 @@ export class StockDataProcessor {
 		};
 	} = {};
 
-	private readonly WINDOW_SIZE = 10 * 1000; // 10 seconds window
+	private readonly WINDOW_SIZE = 60 * 1000; // 60 seconds window
 
 	processMessage(tick: StockTick): ProcessedStockData | null {
 		const now = new Date(tick.timestamp).getTime();
