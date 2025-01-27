@@ -96,11 +96,25 @@ services:
     ports:
       - 5000:5000
     environment:
-      - RABBITMQ_PROTOCOL=${RABBITMQ_PROTOCOL}
-      - RABBITMQ_HOSTNAME=${RABBITMQ_HOSTNAME}
-      - RABBITMQ_PORT=${RABBITMQ_PORT}
-      - RABBITMQ_USER=${RABBITMQ_DEFAULT_USER}
-      - RABBITMQ_PASS=${RABBITMQ_DEFAULT_PASS}
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB_NAME}
+    networks:
+      - real-time-analytics
+
+  client:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rta-client
+    restart: on-failure
+    ports:
+      - 3000:3000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     networks:
       - real-time-analytics
 
