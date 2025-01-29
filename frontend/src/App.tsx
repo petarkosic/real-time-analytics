@@ -1,9 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import { io } from 'socket.io-client';
 import 'chart.js/auto';
 import { Line } from 'react-chartjs-2';
 import 'chartjs-adapter-date-fns';
+import zoomPlugin from 'chartjs-plugin-zoom';
+import crosshairPlugin from 'chartjs-plugin-crosshair';
+import { BubbleDataPoint, Chart, Point } from 'chart.js/auto';
+
+Chart.register(zoomPlugin, crosshairPlugin);
 
 type StockData = {
 	symbol: string;
@@ -109,6 +114,95 @@ function App() {
 		startPeriodicFetching();
 	};
 
+	const chartRef = useRef<Chart<
+		'line',
+		(number | [number, number] | Point | BubbleDataPoint | null)[],
+		unknown
+	> | null>(null);
+
+	const handleResetZoom = () => {
+		if (chartRef.current) {
+			chartRef.current.resetZoom();
+		}
+	};
+
+	const options: Record<string, unknown> = useMemo(() => {
+		return {
+			scales: {
+				x: {
+					type: 'time',
+					time: {
+						unit: getChartTimeUnit(selectedTimeframe),
+						displayFormats: getChartDisplayFormats(selectedTimeframe),
+					},
+				},
+			},
+			plugins: {
+				legend: {
+					display: true,
+					position: 'top',
+					labels: {
+						color: 'rgba(255, 255, 255, 1)',
+					},
+				},
+				tooltip: {
+					enabled: true,
+					mode: 'index',
+					intersect: false,
+					callbacks: {
+						label: (context: {
+							dataset: { data: { [x: string]: string | number } };
+							dataIndex: string | number;
+						}) => {
+							const data = context.dataset.data[context.dataIndex];
+							return `Price: ${data}`;
+						},
+					},
+				},
+				crosshair: {
+					line: {
+						color: '#F66',
+						width: 1,
+						dashPattern: [5, 5],
+					},
+					sync: {
+						enabled: false, // Set true for multiple charts
+					},
+					zoom: {
+						enabled: false, // Disable zoom
+					},
+				},
+				zoom: {
+					zoom: {
+						wheel: {
+							enabled: true,
+							speed: 0.05,
+						},
+						pinch: {
+							enabled: true,
+						},
+						drag: {
+							enabled: true,
+						},
+						pan: {
+							enabled: true,
+							mode: 'xy',
+						},
+						mode: 'xy',
+					},
+				},
+			},
+			animation: false,
+			elements: {
+				point: {
+					radius: 4,
+				},
+			},
+			responsive: true,
+			maintainAspectRatio: false,
+		};
+	}, []);
+
 	return (
 		<div
 			style={{
@@ -132,8 +226,10 @@ function App() {
 				<option value='30m'>30 Minutes</option>
 				<option value='1h'>1 Hour</option>
 			</select>
+			<button onClick={handleResetZoom}>Reset Zoom</button>
 			<div style={{ width: '80%', height: '80%' }}>
 				<Line
+					ref={chartRef}
 					data={{
 						labels: stockData?.[symbol]?.map((data) => data.bucket),
 						datasets: [
@@ -145,32 +241,13 @@ function App() {
 							},
 						],
 					}}
-					options={{
-						scales: {
-							x: {
-								type: 'time',
-								time: {
-									unit: getChartTimeUnit(selectedTimeframe),
-									displayFormats: getChartDisplayFormats(selectedTimeframe),
-								},
-							},
-						},
-						animation: false,
-						elements: {
-							point: {
-								radius: 0,
-							},
-						},
-						responsive: true,
-						maintainAspectRatio: false,
-					}}
+					options={options}
 					updateMode='none'
 				/>
 			</div>
 		</div>
 	);
 }
-
 export default App;
 
 function getChartTimeUnit(interval: string) {
